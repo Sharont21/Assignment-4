@@ -17,29 +17,36 @@ library(randomForest)
 library(BiocManager)
 #BiocManager::install("Biostrings")
 library(Biostrings)
+#install.packages("rentrez")
 library(rentrez)
 #install.packages("pROC")
 library(pROC)
 #install.packages("e1071")
 library(e1071)
 
-# ---- Load butterfly data from BOLD ----
+# ---- Loading data from BOLD ----
+## ---- Load butterfly data ----
 
 dfDanainae <- read_tsv("../data/Danainae.tsv")
 dfHeliconiinae <- read_tsv("../data/Heliconiinae.tsv")
 
 # ---- Checking and filtering data ----
 
+# Getting summary of datasets
 summary(dfDanainae)
 summary(dfHeliconiinae)
 
+# Looking at column names
 names(dfDanainae)
 names(dfHeliconiinae)
 
+# Getting the counts for each gene
 table(dfDanainae$marker_code)
 #6112 COI-5P and 8 COII
 table(dfHeliconiinae$marker_code)
 #10127 COI-5P and 31 COII
+
+#using COI-5P as COI 
 
 #histogram of sequence lengths for COI-5P
 Len_Dan_COI <- nchar(dfDanainae$nuc[dfDanainae$marker_code == "COI-5P"])
@@ -105,7 +112,8 @@ legend(
 rm(Len_Dan_COI, Len_Dan_COII, Len_Hel_COI, Len_Hel_COII)
 
 # ---- Loading data from NCBI ----
-# ---- Download COI sequences for each species of butterfly ----
+
+## ---- Download COI sequences for each species of butterfly ----
 
 Danainae_COI_search <- entrez_search(
   db = "nucleotide", 
@@ -120,6 +128,7 @@ Danainae_COI_fasta <- entrez_fetch(
   rettype = "fasta"
 )
 
+# writing into a fasta file
 write(Danainae_COI_fasta, file = "../data/Danainae_COI_NCBI.fasta")
 
 Heliconiinae_COI_search <- entrez_search(
@@ -135,9 +144,10 @@ Heliconiinae_COI_fasta <- entrez_fetch(
   rettype = "fasta"
 )
 
+# writing into a fasta file
 write(Heliconiinae_COI_fasta, file = "../data/Heliconiinae_COI_NCBI.fasta")
 
-# ---- Download COII sequences for each species of butterfly
+## ---- Download COII sequences for each species of butterfly
 
 Danainae_COII_search <- entrez_search(
   db = "nucleotide", 
@@ -152,6 +162,7 @@ Danainae_COII_fasta <- entrez_fetch(
   rettype = "fasta"
 )
 
+# writing into a fasta file
 write(Danainae_COII_fasta, file = "../data/Danainae_COII_NCBI.fasta")
 
 Heliconiinae_COII_search <- entrez_search(
@@ -168,6 +179,7 @@ Heliconiinae_COII_fasta <- entrez_fetch(
   rettype = "fasta"
 )
 
+# writing into a fasta file
 write(Heliconiinae_COII_fasta, file = "../data/Heliconiinae_COII_NCBI.fasta")
 
 # ---- Load FASTA files into R ----
@@ -178,6 +190,7 @@ Heliconiinae_COI <- readDNAStringSet("../data/Heliconiinae_COI_NCBI.fasta")
 Danainae_COII <- readDNAStringSet("../data/Danainae_COII_NCBI.fasta")
 Heliconiinae_COII <- readDNAStringSet("../data/Heliconiinae_COII_NCBI.fasta")
 
+# removing unused variables
 rm(Danainae_COI_search, Danainae_COII_search, Heliconiinae_COI_search, Heliconiinae_COII_search)
 rm(Danainae_COI_fasta, Danainae_COII_fasta, Heliconiinae_COI_fasta, Heliconiinae_COII_fasta)
 
@@ -198,9 +211,10 @@ df_Hel_COI <- fasta_to_df(Heliconiinae_COI, "Heliconiinae", "COI")
 df_Dan_COII <- fasta_to_df(Danainae_COII, "Danainae", "COII")
 df_Hel_COII <- fasta_to_df(Heliconiinae_COII, "Heliconiinae", "COII")
 
+# removing unused variables
 rm(Danainae_COI, Danainae_COII, Heliconiinae_COI, Heliconiinae_COII)
 
-# ---- Standardize the dataframes ----
+# ---- Standardizing the dataframes ----
 
 dfDan_BOLD <- dfDanainae %>%
   filter(!is.na(nuc)) %>%
@@ -236,30 +250,31 @@ df_all <- bind_rows(
   df_Hel_COII
 )
 
+# removing unused variables
 rm(dfDan_BOLD, dfHel_BOLD, df_Dan_COI, df_Hel_COI, df_Dan_COII, df_Hel_COII)
 
 # ---- Clean and filter sequences ----
 # remove sequences with gaps or N's at the ends
-
 df_all <- df_all %>%
   mutate(nuc2 = str_remove(nuc, "^[-N]+")) %>%
   mutate(nuc2 = str_remove(nuc2, "[-N]+$")) %>%
   mutate(nuc2 = str_remove_all(nuc2, "-+"))
-# remove sequences with >5% Ns
 
+# remove sequences with >5% Ns
 df_all <- df_all %>%
   filter(str_count(nuc2, "N") <= 0.05 * nchar(nuc))
 
 # compare old and new sequence columns
 df_seq_compare <- cbind(df_all$nuc, df_all$nuc2)
+view(df_seq_compare)
 
 rm(df_seq_compare)
 
 # build quartiles to restrict COI sequence lengths
-
 q1 <- quantile(nchar(df_all$nuc2[df_all$gene == "COI"]), 0.25)
 q3 <- quantile(nchar(df_all$nuc2[df_all$gene == "COI"]), 0.75)
 
+#?
 df_clean <- df_all %>%
   filter(
     (gene == "COI" & nchar(nuc2) >= q1 & nchar(nuc2) <= q3 | gene == "COII")
@@ -293,10 +308,10 @@ df_clean <- df_clean %>%
 
 # ---- Build Random Forest Classifier ----
 
+## ---- Classifier 1: predict gene (COI vs COII) ----
+
 table(df_clean$gene)
 # maximum sample size is 620 for the COII gene, so will sample 155 genes (about 25% of the total) for the validation set
-
-# Classifier 1: predict gene (COI vs COII)
 
 # Creating validation set
 
@@ -306,10 +321,11 @@ df_gene_val <- df_clean %>%
   group_by(gene) %>%
   sample_n(155)
 
+# confirming validation set
 table(df_gene_val$gene)
 #155 samples from each
 
-
+# remaining set after 155 samples taken for validation set
 df_remaining <- df_clean %>% filter(!id %in% df_gene_val$id)
 df_remaining %>% count(gene)
 #465 COII and 9003 COI so will choose sample size of 400
@@ -320,6 +336,7 @@ df_gene_train <- df_remaining %>%
   group_by(gene) %>%
   sample_n(400)
 
+# confirming training set
 table(df_gene_train$gene)
 #400 samples from each
 
@@ -341,14 +358,10 @@ pred_gene <- predict(gene_classifier, df_gene_val[, c("Aprop", "Tprop", "Gprop")
 table(observed = df_gene_val$gene, predicted = pred_gene)
 # works well
 
-# Classifier 2: predict species (Danainae vs Heliconiinae)
-
-unique(df_clean$species)
+## ---- Classifier 2: predict species (Danainae vs Heliconiinae) ----
 
 table(df_clean$species)
 # maximum sample size is 3025 for Danainae, so will sample 755 genes (about 25% of the total) for the validation set
-
-# Classifier 1: predict species (Danainae vs Heliconiinae)
 
 # Creating validation set
 
@@ -397,7 +410,7 @@ table(observed = df_species_val$species, predicted = pred_species)
 # ---- ROC Curves ----
 # test to see how good both gene_classifier and species_classifier are at telling 2 classes apart
 
-# ROC for gene classifier (COI vs COII)
+## ---- ROC for gene classifier (COI vs COII) ----
 
 pred_gene_prob <- predict(
   gene_classifier,
@@ -421,10 +434,10 @@ plot(
 )
 
 auc(roc_gene)
-#Area under the curve = 1, meaning there is perfect classification
+# area under the curve = 1, meaning there is perfect classification
 # The model can separate COI and COII with 100% accuracy across all thresholds
 
-# ROC for species classifier (Danainae vs Heliconiinae)
+## ---- ROC for species classifier (Danainae vs Heliconiinae) ----
 
 pred_species_prob <- predict(
   species_classifier,
@@ -468,7 +481,7 @@ legend(
 
 # adding a second classifier to see which one works better
 
-# ---- Gene Classifier (COI vs COII) ----
+## ---- Gene Classifier (COI vs COII) ----
 
 # Training SVM
 
@@ -497,7 +510,7 @@ svm_gene_pred <- predict(svm_gene, x_gene_val)
 # confusion matrix
 table(observed = y_gene_val, predicted = svm_gene_pred)
 
-# ROC and AUC for SVM 
+# ROC and AUC for SVM for genes
 
 svm_gene_pred_prob <- attr(
   predict(svm_gene, x_gene_val, probability = TRUE),
@@ -514,7 +527,7 @@ legend("bottomright",
        col = c("blue", "red"),
        lwd = 2, bty = "n")
 
-# ---- Species Classifier (Danainae vs Heliconiinae) ----
+## ---- Species Classifier (Danainae vs Heliconiinae) ----
 
 # Training SVM
 
@@ -543,7 +556,7 @@ svm_species_pred <- predict(svm_species, x_species_val)
 # confusion matrix
 table(observed = y_species_val, predicted = svm_species_pred)
 
-# ROC and AUC for SVM 
+# ROC and AUC for SVM for species
 
 svm_species_pred_prob <- attr(
   predict(svm_species, x_species_val, probability = TRUE),
