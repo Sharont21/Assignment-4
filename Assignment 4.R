@@ -11,10 +11,15 @@
 
 library(tidyverse)
 library(ggplot2)
+#install.packages("randomForest")
 library(randomForest)
+#install.packages("BiocManager")
 library(BiocManager)
+#BiocManager::install("Biostrings")
 library(Biostrings)
 library(rentrez)
+#install.packages("pROC")
+library(pROC)
 
 # ---- Load butterfly data ----
 
@@ -386,4 +391,72 @@ pred_species <- predict(species_classifier, df_species_val[, c("Aprop", "Tprop",
 table(observed = df_species_val$species, predicted = pred_species)
 # works pretty good
 
+# ---- ROC Curves ----
+# test to see how good both gene_classifier and species_classifier are at telling 2 classes apart
 
+# ROC for gene classifier (COI vs COII)
+
+pred_gene_prob <- predict(
+  gene_classifier,
+  df_gene_val[, c("Aprop", "Tprop", "Gprop")],
+  type = "prob"
+)
+
+# probability of one class - choosing COI as the control
+
+roc_gene <- roc(
+  response = df_gene_val$gene,
+  predictor = pred_gene_prob[, "COI"]
+)
+
+#plot it
+plot(
+  roc_gene,
+  col = "blue",
+  lwd = 2,
+  main = "ROC Curve: Gene Classifier (COI vs COII)"
+)
+
+auc(roc_gene)
+#Area under the curve = 1, meaning there is perfect classification
+# The model can separate COI and COII with 100% accuracy across all thresholds
+
+# ROC for species classifier (Danainae vs Heliconiinae)
+
+pred_species_prob <- predict(
+  species_classifier,
+  df_species_val[, c("Aprop", "Tprop", "Gprop")],
+  type = "prob"
+)
+
+# probability of one class - choosing Danainae as the control
+
+roc_species <- roc(
+  response = df_species_val$species,
+  predictor = pred_species_prob[, "Danainae"]
+)
+
+#plot it
+plot(
+  roc_species,
+  col = "red",
+  lwd = 2,
+  main = "ROC Curve: Species Classifier (Danainae vs Heliconiinae)"
+)
+
+auc(roc_species)
+#Area under the curve = 0.9699, meaning very strong classification
+# The classifier can almost always distinguish between the two butterfly subfamilies
+
+# Overlaying both ROC curves
+
+plot(roc_gene, col = "blue", lwd = 2, main = "ROC Comparison")
+plot(roc_species, col = "red", lwd = 2, add = TRUE)
+
+legend(
+  "bottomright",
+  legend = c("Gene (COI vs COII)", "Species (Danainae vs Heliconiinae)"),
+  col = c("blue", "red"),
+  lwd = 2, 
+  bty = "n"
+)
