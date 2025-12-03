@@ -20,8 +20,10 @@ library(Biostrings)
 library(rentrez)
 #install.packages("pROC")
 library(pROC)
+#install.packages("e1071")
+library(e1071)
 
-# ---- Load butterfly data ----
+# ---- Load butterfly data from BOLD ----
 
 dfDanainae <- read_tsv("../data/Danainae.tsv")
 dfHeliconiinae <- read_tsv("../data/Heliconiinae.tsv")
@@ -102,6 +104,7 @@ legend(
 
 rm(Len_Dan_COI, Len_Dan_COII, Len_Hel_COI, Len_Hel_COII)
 
+# ---- Loading data from NCBI ----
 # ---- Download COI sequences for each species of butterfly ----
 
 Danainae_COI_search <- entrez_search(
@@ -460,3 +463,99 @@ legend(
   lwd = 2, 
   bty = "n"
 )
+
+# ---- SVM Classifiers ----
+
+# adding a second classifier to see which one works better
+
+# ---- Gene Classifier (COI vs COII) ----
+
+# Training SVM
+
+gene_feat <- c("Aprop", "Tprop", "Gprop")
+
+x_gene_train <- df_gene_train[, gene_feat]
+y_gene_train <- as.factor(df_gene_train$gene)
+
+svm_gene <- svm(
+  x = x_gene_train,
+  y = y_gene_train, 
+  kernel = "linear",
+  probability = TRUE,
+  scale = TRUE
+)
+
+svm_gene
+
+# Validate SVM
+
+x_gene_val <- df_gene_val[, gene_feat]
+y_gene_val <- as.factor(df_gene_val$gene)
+
+svm_gene_pred <- predict(svm_gene, x_gene_val)
+
+# confusion matrix
+table(observed = y_gene_val, predicted = svm_gene_pred)
+
+# ROC and AUC for SVM 
+
+svm_gene_pred_prob <- attr(
+  predict(svm_gene, x_gene_val, probability = TRUE),
+  "probabilities"
+)[, "COI"]
+
+roc_gene_svm <- roc(response = y_gene_val, predictor = svm_gene_pred_prob)
+auc(roc_gene_svm)
+
+plot(roc_gene, col = "blue", lwd = 2, main = "Gene ROC: RF vs SVM")
+plot(roc_gene_svm, col = "red", lwd = 2, add = TRUE)
+legend("bottomright",
+       legend = c("Random Forest", "SVM"),
+       col = c("blue", "red"),
+       lwd = 2, bty = "n")
+
+# ---- Species Classifier (Danainae vs Heliconiinae) ----
+
+# Training SVM
+
+species_feat <- c("Aprop", "Tprop", "Gprop")
+
+x_species_train <- df_species_train[, species_feat]
+y_species_train <- as.factor(df_species_train$species)
+
+svm_species <- svm(
+  x = x_species_train,
+  y = y_species_train, 
+  kernel = "linear",
+  probability = TRUE,
+  scale = TRUE
+)
+
+svm_species
+
+# Validate SVM
+
+x_species_val <- df_species_val[, species_feat]
+y_species_val <- as.factor(df_species_val$species)
+
+svm_species_pred <- predict(svm_species, x_species_val)
+
+# confusion matrix
+table(observed = y_species_val, predicted = svm_species_pred)
+
+# ROC and AUC for SVM 
+
+svm_species_pred_prob <- attr(
+  predict(svm_species, x_species_val, probability = TRUE),
+  "probabilities"
+)[, "Danainae"]
+
+roc_species_svm <- roc(response = y_species_val, predictor = svm_species_pred_prob)
+auc(roc_species_svm)
+
+plot(roc_species, col = "blue", lwd = 2, main = "Species ROC: RF vs SVM")
+plot(roc_species_svm, col = "red", lwd = 2, add = TRUE)
+legend("bottomright",
+       legend = c("Random Forest", "SVM"),
+       col = c("blue", "red"),
+       lwd = 2, bty = "n")
