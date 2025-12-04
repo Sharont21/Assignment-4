@@ -46,141 +46,64 @@ table(dfDanainae$marker_code)
 table(dfHeliconiinae$marker_code)
 #10127 COI-5P and 31 COII
 
-#using COI-5P as COI 
+# I will be using COI-5P as COI 
 
-#histogram of sequence lengths for COI-5P
-Len_Dan_COI <- nchar(dfDanainae$nuc[dfDanainae$marker_code == "COI-5P"])
-Len_Hel_COI <- nchar(dfHeliconiinae$nuc[dfHeliconiinae$marker_code == "COI-5P"])
-
-hist(Len_Dan_COI,
-     xlab = "Sequence Length",
-     ylab = "Frequency",
-     main = "COI-5P Sequence Lengths: Danainae vs Heliconiinae",
-     col = rgb(0, 0, 1, 0.4),   
-     border = "blue"
-)
-
-# add Heliconiinae on top
-hist(Len_Hel_COI,
-     col = rgb(1, 0, 0, 0.4),   
-     border = "red",
-     add = TRUE
-)
-
-legend(
-  x = 950,
-  y = 4000, 
-  legend = c("Danainae", "Heliconiinae"),
-  fill = c(rgb(0,0,1,0.4), rgb(1,0,0,0.4)),
-  border = c("blue", "red"),
-  bty = "n", 
-  cex = 0.9
-  )
-
-
-#histogram of sequence lengths for COII
-Len_Dan_COII <- nchar(dfDanainae$nuc[dfDanainae$marker_code == "COII"])
-Len_Hel_COII <- nchar(dfHeliconiinae$nuc[dfHeliconiinae$marker_code == "COII"])
-
-par(mar = c(5,4,10,2))
-
-hist(Len_Dan_COII,
-     xlab = "Sequence Length",
-     ylab = "Frequency",
-     main = "COII Sequence Lengths: Danainae vs Heliconiinae",
-     col = rgb(0, 0, 1, 0.4),   
-     border = "blue"
-)
-
-# add Heliconiinae on top
-hist(Len_Hel_COII,
-     col = rgb(1, 0, 0, 0.4),   
-     border = "red",
-     add = TRUE
-)
-
-legend(
-  x = 671.1,
-  y = 6.5,
-  legend = c("Danainae", "Heliconiinae"),
-  fill = c(rgb(0,0,1,0.4), rgb(1,0,0,0.4)),
-  border = c("blue", "red"),
-  bty = "n",      
-  cex = 0.9       
-)
-
-rm(Len_Dan_COI, Len_Dan_COII, Len_Hel_COI, Len_Hel_COII)
-
-# ---- Loading data from NCBI ----
+# ---- Downloading data from NCBI ----
 
 ## ---- Download COI sequences for each species of butterfly ----
 
-Danainae_COI_search <- entrez_search(
-  db = "nucleotide", 
-  term = "Danaus plexippus[Organism] AND COI[Gene]", 
-  retmax = 1000, 
-  use_history = TRUE
+# Creating a reusable function to download and save to a file
+
+download_gene_fasta <- function(organism, gene, outfile, retmax = 1000) {
+  
+  # creating NCBI search term
+  search_term <- paste0(organism, "[Organism] AND ", gene, "[Gene]")
+  
+  # searching NCBI nucleotides
+  search_res <- entrez_search(
+    db = "nucleotide",
+    term = search_term,
+    retmax = retmax,
+    use_history = TRUE
+  )
+  
+  # getting fasta sequences
+  fasta_res <- entrez_fetch(
+    db = "nucleotide",
+    web_history = search_res$web_history,
+    rettype = "fasta"
+  )
+  
+  # writing to a file
+  write(fasta_res, file = outfile)
+}
+
+# use function to download COI and COII genes for both butterfly species (Danainae and Heliconiinae)
+#Danaus plexippus
+#Heliconius erato
+download_gene_fasta(
+  organism = "Danainae",
+  gene     = "COI",
+  outfile  = "../data/Danainae_COI_NCBI.fasta"
 )
 
-Danainae_COI_fasta <- entrez_fetch(
-  db = "nucleotide", 
-  web_history = Danainae_COI_search$web_history,
-  rettype = "fasta"
+download_gene_fasta(
+  organism = "Heliconiinae",
+  gene     = "COI",
+  outfile  = "../data/Heliconiinae_COI_NCBI.fasta"
 )
 
-# writing into a fasta file
-write(Danainae_COI_fasta, file = "../data/Danainae_COI_NCBI.fasta")
-
-Heliconiinae_COI_search <- entrez_search(
-  db = "nucleotide",
-  term = "Heliconius erato[Organism] AND COI[Gene]", 
-  retmax = 1000, 
-  use_history = TRUE
+download_gene_fasta(
+  organism = "Danainae",
+  gene     = "COII",
+  outfile  = "../data/Danainae_COII_NCBI.fasta"
 )
 
-Heliconiinae_COI_fasta <- entrez_fetch(
-  db = "nucleotide", 
-  web_history = Heliconiinae_COI_search$web_history, 
-  rettype = "fasta"
+download_gene_fasta(
+  organism = "Heliconiinae",
+  gene     = "COII",
+  outfile  = "../data/Heliconiinae_COII_NCBI.fasta"
 )
-
-# writing into a fasta file
-write(Heliconiinae_COI_fasta, file = "../data/Heliconiinae_COI_NCBI.fasta")
-
-## ---- Download COII sequences for each species of butterfly
-
-Danainae_COII_search <- entrez_search(
-  db = "nucleotide", 
-  term = "Danaus plexippus[Organism] AND COII[Gene]", 
-  retmax = 1000,
-  use_history = TRUE
-)
-
-Danainae_COII_fasta <- entrez_fetch(
-  db = "nucleotide", 
-  web_history = Danainae_COII_search$web_history,
-  rettype = "fasta"
-)
-
-# writing into a fasta file
-write(Danainae_COII_fasta, file = "../data/Danainae_COII_NCBI.fasta")
-
-Heliconiinae_COII_search <- entrez_search(
-  db = "nucleotide",
-  term = "Heliconius erato[Organism] AND COII[Gene]",
-  retmax = 1000, 
-  use_history = TRUE
-)
-
-
-Heliconiinae_COII_fasta <- entrez_fetch(
-  db = "nucleotide",
-  web_history = Heliconiinae_COII_search$web_history,
-  rettype = "fasta"
-)
-
-# writing into a fasta file
-write(Heliconiinae_COII_fasta, file = "../data/Heliconiinae_COII_NCBI.fasta")
 
 # ---- Load FASTA files into R ----
 
@@ -189,10 +112,6 @@ Heliconiinae_COI <- readDNAStringSet("../data/Heliconiinae_COI_NCBI.fasta")
 
 Danainae_COII <- readDNAStringSet("../data/Danainae_COII_NCBI.fasta")
 Heliconiinae_COII <- readDNAStringSet("../data/Heliconiinae_COII_NCBI.fasta")
-
-# removing unused variables
-rm(Danainae_COI_search, Danainae_COII_search, Heliconiinae_COI_search, Heliconiinae_COII_search)
-rm(Danainae_COI_fasta, Danainae_COII_fasta, Heliconiinae_COI_fasta, Heliconiinae_COII_fasta)
 
 # ---- Converting each FASTA to a tibble ----
 
@@ -214,7 +133,7 @@ df_Hel_COII <- fasta_to_df(Heliconiinae_COII, "Heliconiinae", "COII")
 # removing unused variables
 rm(Danainae_COI, Danainae_COII, Heliconiinae_COI, Heliconiinae_COII)
 
-# ---- Standardizing the dataframes ----
+# ---- Standardizing the BOLD data ----
 
 dfDan_BOLD <- dfDanainae %>%
   filter(!is.na(nuc)) %>%
@@ -252,6 +171,79 @@ df_all <- bind_rows(
 
 # removing unused variables
 rm(dfDan_BOLD, dfHel_BOLD, df_Dan_COI, df_Hel_COI, df_Dan_COII, df_Hel_COII)
+
+# ---- Exploratory analysis on combined data ----
+summary(df_all)
+table(df_all$gene)
+# 25796 COI and 2832 COII
+
+table(df_all$species)
+# 11217 Danainae and 20067 Heliconiinae
+
+
+#histogram of sequence lengths for COI
+Len_Dan_COI <- nchar(df_all$nuc[df_all$gene == "COI" & df_all$species == "Danainae"])
+Len_Hel_COI <- nchar(df_all$nuc[df_all$gene == "COI" & df_all$species == "Heliconiinae"])
+
+hist(Len_Dan_COI,
+     xlab = "Sequence Length",
+     ylab = "Frequency",
+     main = "COI-5P Sequence Lengths: Danainae vs Heliconiinae (BOLD + NCBI)",
+     col = rgb(0, 0, 1, 0.4),   
+     border = "blue"
+)
+
+# add Heliconiinae on top
+hist(Len_Hel_COI,
+     col = rgb(1, 0, 0, 0.4),   
+     border = "red",
+     add = TRUE
+)
+
+legend(
+  x = 950,
+  y = 4000, 
+  legend = c("Danainae", "Heliconiinae"),
+  fill = c(rgb(0,0,1,0.4), rgb(1,0,0,0.4)),
+  border = c("blue", "red"),
+  bty = "n", 
+  cex = 0.9
+  )
+
+
+#histogram of sequence lengths for COII
+Len_Dan_COII <- nchar(df_all$nuc[df_all$gene == "COII" & df_all$species == "Danainae"])
+Len_Hel_COII <- nchar(df_all$nuc[df_all$gene == "COII" & df_all$species == "Heliconiinae"])
+
+par(mar = c(5,4,10,2))
+
+hist(Len_Dan_COII,
+     xlab = "Sequence Length",
+     ylab = "Frequency",
+     main = "COII Sequence Lengths: Danainae vs Heliconiinae",
+     col = rgb(0, 0, 1, 0.4),   
+     border = "blue"
+)
+
+# add Heliconiinae on top
+hist(Len_Hel_COII,
+     col = rgb(1, 0, 0, 0.4),   
+     border = "red",
+     add = TRUE
+)
+
+legend(
+  x = 3000,
+  y = 600,
+  legend = c("Danainae", "Heliconiinae"),
+  fill = c(rgb(0,0,1,0.4), rgb(1,0,0,0.4)),
+  border = c("blue", "red"),
+  bty = "n",      
+  cex = 0.9       
+)
+
+rm(Len_Dan_COI, Len_Dan_COII, Len_Hel_COI, Len_Hel_COII)
+
 
 # ---- Clean and filter sequences ----
 # remove sequences with gaps or N's at the ends
@@ -311,7 +303,7 @@ df_clean <- df_clean %>%
 ## ---- Classifier 1: predict gene (COI vs COII) ----
 
 table(df_clean$gene)
-# maximum sample size is 620 for the COII gene, so will sample 155 genes (about 25% of the total) for the validation set
+# maximum sample size is 2798 for the COII gene, so will sample 699 genes (about 25% of the total) for the validation set
 
 # Creating validation set
 
@@ -319,26 +311,26 @@ set.seed(123)
 
 df_gene_val <- df_clean %>%
   group_by(gene) %>%
-  sample_n(155)
+  sample_n(699)
 
 # confirming validation set
 table(df_gene_val$gene)
-#155 samples from each
+#699 samples from each
 
 # remaining set after 155 samples taken for validation set
 df_remaining <- df_clean %>% filter(!id %in% df_gene_val$id)
 df_remaining %>% count(gene)
-#465 COII and 9003 COI so will choose sample size of 400
+#12173 COI and 2099 COII so will choose sample size of 2000
 
 # Creating training set
 
 df_gene_train <- df_remaining %>%
   group_by(gene) %>%
-  sample_n(400)
+  sample_n(2000)
 
 # confirming training set
 table(df_gene_train$gene)
-#400 samples from each
+#2000 samples from each
 
 # building a classifier
 
@@ -350,7 +342,7 @@ gene_classifier <- randomForest(
 )
 
 gene_classifier
-# good performance, error rate of 0.12%, misclassified 1
+# good performance, error rate of 0.25%, misclassified COI as COII 8 times, and COII as COI 2 times
 
 # validate
 
@@ -361,7 +353,7 @@ table(observed = df_gene_val$gene, predicted = pred_gene)
 ## ---- Classifier 2: predict species (Danainae vs Heliconiinae) ----
 
 table(df_clean$species)
-# maximum sample size is 3025 for Danainae, so will sample 755 genes (about 25% of the total) for the validation set
+# maximum sample size is 5042 for Danainae, so will sample 1260 genes (about 25% of the total) for the validation set
 
 # Creating validation set
 
@@ -369,24 +361,24 @@ set.seed(456)
 
 df_species_val <- df_clean %>%
   group_by(species) %>%
-  sample_n(755)
+  sample_n(1260)
 
 table(df_species_val$species)
-#755 samples from each
+#1260 samples from each
 
 
 df_species_remaining <- df_clean %>% filter(!id %in% df_species_val$id)
 df_species_remaining %>% count(species)
-#2270 Danainae and 5998 Heliconiinae so will choose sample size of 2000
+#3782 Danainae and 9368 Heliconiinae so will choose sample size of 3000
 
 # Creating training set
 
 df_species_train <- df_species_remaining %>%
   group_by(species) %>%
-  sample_n(2000)
+  sample_n(3000)
 
 table(df_species_train$species)
-#2000 samples from each
+#3000 samples from each
 
 # building a classifier
 
@@ -398,7 +390,7 @@ species_classifier <- randomForest(
 )
 
 species_classifier
-# good performance, error rate of 7.15%
+# good performance, error rate of 7.92%
 
 # validate
 
@@ -461,7 +453,7 @@ plot(
 )
 
 auc(roc_species)
-#Area under the curve = 0.9699, meaning very strong classification
+#Area under the curve = 0.9728, meaning very strong classification
 # The classifier can almost always distinguish between the two butterfly subfamilies
 
 # Overlaying both ROC curves
@@ -572,3 +564,4 @@ legend("bottomright",
        legend = c("Random Forest", "SVM"),
        col = c("blue", "red"),
        lwd = 2, bty = "n")
+
