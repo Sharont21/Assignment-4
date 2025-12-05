@@ -30,7 +30,7 @@ library(e1071)
 dfDanainae <- read_tsv("../data/Danainae.tsv")
 dfHeliconiinae <- read_tsv("../data/Heliconiinae.tsv")
 
-# ---- Checking and filtering data ----
+# ---- Exploratory analysis on BOLD data ----
 
 # Getting summary of datasets
 summary(dfDanainae)
@@ -46,20 +46,19 @@ table(dfDanainae$marker_code)
 table(dfHeliconiinae$marker_code)
 #10127 COI-5P and 31 COII
 
-# I will be using COI-5P as COI 
+# I will be using COI-5P as my COI gene
 
 # ---- Downloading data from NCBI ----
 
-## ---- Download COI sequences for each species of butterfly ----
+## ---- Download COI sequences for each subfamily of butterfly ----
 
 # Creating a reusable function to download and save to a file
-
 download_gene_fasta <- function(organism, gene, outfile, retmax = 1000) {
   
-  # creating NCBI search term
+  # Creating NCBI search term
   search_term <- paste0(organism, "[Organism] AND ", gene, "[Gene]")
   
-  # searching NCBI nucleotides
+  # Searching NCBI nucleotides
   search_res <- entrez_search(
     db = "nucleotide",
     term = search_term,
@@ -67,20 +66,18 @@ download_gene_fasta <- function(organism, gene, outfile, retmax = 1000) {
     use_history = TRUE
   )
   
-  # getting fasta sequences
+  # Getting fasta sequences
   fasta_res <- entrez_fetch(
     db = "nucleotide",
     web_history = search_res$web_history,
     rettype = "fasta"
   )
   
-  # writing to a file
+  # Writing to a file
   write(fasta_res, file = outfile)
 }
 
-# use function to download COI and COII genes for both butterfly species (Danainae and Heliconiinae)
-#Danaus plexippus
-#Heliconius erato
+# Using function to download COI and COII genes for both butterfly subfamily (Danainae and Heliconiinae)
 download_gene_fasta(
   organism = "Danainae",
   gene     = "COI",
@@ -115,11 +112,11 @@ Heliconiinae_COII <- readDNAStringSet("../data/Heliconiinae_COII_NCBI.fasta")
 
 # ---- Converting each FASTA to a tibble ----
 
-fasta_to_df <- function(x, species, gene) {
+fasta_to_df <- function(x, subfamily, gene) {
   tibble(
     id = names(x),
     nuc = as.character(x),
-    species = species,
+    subfamily = subfamily,
     gene = gene
   )
 }
@@ -130,7 +127,7 @@ df_Hel_COI <- fasta_to_df(Heliconiinae_COI, "Heliconiinae", "COI")
 df_Dan_COII <- fasta_to_df(Danainae_COII, "Danainae", "COII")
 df_Hel_COII <- fasta_to_df(Heliconiinae_COII, "Heliconiinae", "COII")
 
-# removing unused variables
+# Removing unused variables
 rm(Danainae_COI, Danainae_COII, Heliconiinae_COI, Heliconiinae_COII)
 
 # ---- Standardizing the BOLD data ----
@@ -140,7 +137,7 @@ dfDan_BOLD <- dfDanainae %>%
   transmute(
     id = processid,
     nuc = nuc,
-    species = "Danainae",
+    subfamily = "Danainae",
     gene = marker_code
   )
 
@@ -149,17 +146,15 @@ dfHel_BOLD <- dfHeliconiinae %>%
   transmute(
     id = processid,
     nuc = nuc,
-    species = "Heliconiinae", 
+    subfamily = "Heliconiinae", 
     gene = marker_code
   )
 
-# rename COI-5P to COI since that is what it's called in BOLD
-
+# Standardizing gene name across data sources by renaming BOLD's "COI-5P" to "COI" so it matches NCBI gene annotation
 dfDan_BOLD$gene[dfDan_BOLD$gene == "COI-5P"] <- "COI"
 dfHel_BOLD$gene[dfHel_BOLD$gene == "COI-5P"] <- "COI"
 
-# combine all the datasets into one dataframe
-
+# Combining all BOLD and NCBI sequences into one unified dataframe
 df_all <- bind_rows(
   dfDan_BOLD,
   dfHel_BOLD,
@@ -169,31 +164,49 @@ df_all <- bind_rows(
   df_Hel_COII
 )
 
-# removing unused variables
+# Removing unused variables
 rm(dfDan_BOLD, dfHel_BOLD, df_Dan_COI, df_Hel_COI, df_Dan_COII, df_Hel_COII)
 
 # ---- Exploratory analysis on combined data ----
+
 summary(df_all)
 table(df_all$gene)
 # 25796 COI and 2832 COII
 
-table(df_all$species)
+table(df_all$subfamily)
 # 11217 Danainae and 20067 Heliconiinae
 
 
-#histogram of sequence lengths for COI
-Len_Dan_COI <- nchar(df_all$nuc[df_all$gene == "COI" & df_all$species == "Danainae"])
-Len_Hel_COI <- nchar(df_all$nuc[df_all$gene == "COI" & df_all$species == "Heliconiinae"])
+# Histogram of sequence lengths for COI
+Len_Dan_COI <- df_all %>%
+  filter(gene == "COI",
+         subfamily == "Danainae",
+         nchar(nuc) >= 600,
+         nchar(nuc) <= 800) %>%
+  pull(nuc) %>%
+  nchar()
+
+Len_Hel_COI <- df_all %>%
+  filter(gene == "COI",
+         subfamily == "Heliconiinae",
+         nchar(nuc) >= 600,
+         nchar(nuc) <= 800) %>%
+  pull(nuc) %>%
+  nchar()
+
+# Restricting to 600–800 bp to match the expected insect COI barcode length and remove outliers (partial or whole-mitochondrial sequences)
+
+png("../figs/Histogram_COI.png", width = 800, height = 600, res = 120)
 
 hist(Len_Dan_COI,
      xlab = "Sequence Length",
      ylab = "Frequency",
-     main = "COI-5P Sequence Lengths: Danainae vs Heliconiinae (BOLD + NCBI)",
+     main = "COI Sequence Lengths: Danainae vs Heliconiinae",
      col = rgb(0, 0, 1, 0.4),   
      border = "blue"
 )
 
-# add Heliconiinae on top
+# Adding Heliconiinae on top
 hist(Len_Hel_COI,
      col = rgb(1, 0, 0, 0.4),   
      border = "red",
@@ -201,8 +214,7 @@ hist(Len_Hel_COI,
 )
 
 legend(
-  x = 950,
-  y = 4000, 
+  "topright",
   legend = c("Danainae", "Heliconiinae"),
   fill = c(rgb(0,0,1,0.4), rgb(1,0,0,0.4)),
   border = c("blue", "red"),
@@ -210,90 +222,116 @@ legend(
   cex = 0.9
   )
 
+dev.off()
 
-#histogram of sequence lengths for COII
-Len_Dan_COII <- nchar(df_all$nuc[df_all$gene == "COII" & df_all$species == "Danainae"])
-Len_Hel_COII <- nchar(df_all$nuc[df_all$gene == "COII" & df_all$species == "Heliconiinae"])
+# Interpretation: Most COI sequences for both Danainae and Heliconiinae cluster tightly around ~650 bp, which is the expected insect barcode length. Heliconiinae shows slightly greater length variability, while Danainae is more uniform. 
 
-par(mar = c(5,4,10,2))
+# Histogram of sequence lengths for COII
+Len_Dan_COII <- nchar(df_all$nuc[df_all$gene == "COII" & df_all$subfamily == "Danainae" &
+                                    nchar(df_all$nuc) <= 800])
+Len_Hel_COII <- nchar(df_all$nuc[df_all$gene == "COII" & df_all$subfamily == "Heliconiinae" &
+                                   nchar(df_all$nuc) <= 800])
+
+# Restricting to 600–800 bp to match the expected insect COII barcode length and remove outliers (partial or whole-mitochondrial sequences)
+
+# Adding a big right margin for legend
+png("../figs/Histogram_COII.png", width = 800, height = 600, res = 120)
+
+par(mar = c(5, 5, 4, 8))
 
 hist(Len_Dan_COII,
      xlab = "Sequence Length",
      ylab = "Frequency",
      main = "COII Sequence Lengths: Danainae vs Heliconiinae",
-     col = rgb(0, 0, 1, 0.4),   
+     col = rgb(0, 0, 1, 0.4),
      border = "blue"
 )
 
-# add Heliconiinae on top
 hist(Len_Hel_COII,
-     col = rgb(1, 0, 0, 0.4),   
+     col = rgb(1, 0, 0, 0.4),
      border = "red",
      add = TRUE
 )
 
-legend(
-  x = 3000,
-  y = 600,
-  legend = c("Danainae", "Heliconiinae"),
-  fill = c(rgb(0,0,1,0.4), rgb(1,0,0,0.4)),
-  border = c("blue", "red"),
-  bty = "n",      
-  cex = 0.9       
-)
+# Allowing drawing outside plot for the legend
+par(xpd = NA)
 
+legend("topright",
+       inset = c(-0.40, 0), 
+       legend = c("Danainae", "Heliconiinae"),
+       fill = c(rgb(0,0,1,0.4), rgb(1,0,0,0.4)),
+       border = c("blue", "red"),
+       bty = "n",
+       cex = 0.9)
+
+dev.off()
+
+# Interpretation: COII sequence lengths in both Danainae and Heliconiinae are tightly clustered, with substantial overlap between groups, indicating highly conserved barcode lengths and no strong subfamily-specific length differences
+
+# Removing unused variables
 rm(Len_Dan_COI, Len_Dan_COII, Len_Hel_COI, Len_Hel_COII)
 
-
 # ---- Clean and filter sequences ----
-# remove sequences with gaps or N's at the ends
+
+# Removing sequences with gaps or N's at the ends
 df_all <- df_all %>%
   mutate(nuc2 = str_remove(nuc, "^[-N]+")) %>%
   mutate(nuc2 = str_remove(nuc2, "[-N]+$")) %>%
   mutate(nuc2 = str_remove_all(nuc2, "-+"))
 
-# remove sequences with >5% Ns
+# Removing sequences with >5% Ns
 df_all <- df_all %>%
   filter(str_count(nuc2, "N") <= 0.05 * nchar(nuc))
 
-# compare old and new sequence columns
+# Filtering to standard barcode-length sequences for insects (600–800 bp) to ensure comparability across subfamilies and databases
+df_all <- df_all %>%
+  filter(
+    (gene == "COI"  & nchar(nuc) >= 600 & nchar(nuc) <= 800) |
+      (gene == "COII" & nchar(nuc) >= 600 & nchar(nuc) <= 800)
+  )
+
+# Comparing old and new sequence columns
 df_seq_compare <- cbind(df_all$nuc, df_all$nuc2)
 view(df_seq_compare)
+# Successfully removed sequences with gaps or N's
 
 rm(df_seq_compare)
 
-# build quartiles to restrict COI sequence lengths
+# Building quartiles to restrict COI sequence lengths
 q1 <- quantile(nchar(df_all$nuc2[df_all$gene == "COI"]), 0.25)
 q3 <- quantile(nchar(df_all$nuc2[df_all$gene == "COI"]), 0.75)
 
-#?
+# Filtering COI sequences to the interquartile length range to remove unusually short or long outliers, and retaining all COII sequences
 df_clean <- df_all %>%
   filter(
     (gene == "COI" & nchar(nuc2) >= q1 & nchar(nuc2) <= q3 | gene == "COII")
   )
 
-# convert sequences to DNAStringSet
+# Checking the maximum sequence length after filtering to confirm that outliers were removed
+max(nchar(df_clean$nuc))
+#727 - falls within the expected 600–800 bp barcode range, confirming that long outlier sequences (full mitochondrial genomes) were successfully removed
 
+# Converting sequences to DNAStringSet
 df_clean <- as.data.frame(df_clean)
 df_clean$nuc2 <- DNAStringSet(df_clean$nuc2)
 
-# extract nucleotides and k-mer features
-
+# Extracting nucleotides and k-mer features
 df_clean <- cbind(
   df_clean,
   as.data.frame(letterFrequency(df_clean$nuc2, letters = c("A", "C", "G", "T")))
 )
 
-#proportions
+# Building proportions
 df_clean$Aprop <- df_clean$A / (df_clean$A + df_clean$C + df_clean$G + df_clean$T)
 df_clean$Tprop <- df_clean$T / (df_clean$A + df_clean$C + df_clean$G + df_clean$T)
 df_clean$Gprop <- df_clean$G / (df_clean$A + df_clean$C + df_clean$G + df_clean$T)
 
-# adding dinucleotide frequency (k-mers length of 2)
+# Adding dinucleotide frequency (k-mers length of 2)
 df_clean <- cbind(
   df_clean,
   as.data.frame(dinucleotideFrequency(df_clean$nuc2, as.prob = TRUE)))
 
+# Converting DNAStringSet back to character format and removing DNAStringSet column
 df_clean$nuc2_char <- as.character(df_clean$nuc2)
 df_clean <- df_clean %>%
   select(-nuc2)
@@ -302,38 +340,36 @@ df_clean <- df_clean %>%
 
 ## ---- Classifier 1: predict gene (COI vs COII) ----
 
+# Checking the number of sequences per gene after filtering
 table(df_clean$gene)
-# maximum sample size is 2798 for the COII gene, so will sample 699 genes (about 25% of the total) for the validation set
+# Maximum sample size is 62 for the COII gene, so will sample 15 genes (about 25% of the total) for the validation set
 
 # Creating validation set
-
 set.seed(123)
 
 df_gene_val <- df_clean %>%
   group_by(gene) %>%
-  sample_n(699)
+  sample_n(15)
 
-# confirming validation set
+# Confirming validation set
 table(df_gene_val$gene)
-#699 samples from each
+# 15 samples from each
 
-# remaining set after 155 samples taken for validation set
+# Remaining set after 155 samples taken for validation set
 df_remaining <- df_clean %>% filter(!id %in% df_gene_val$id)
 df_remaining %>% count(gene)
-#12173 COI and 2099 COII so will choose sample size of 2000
+# 12310 COI and 47 COII so will choose sample size of 40
 
 # Creating training set
-
 df_gene_train <- df_remaining %>%
   group_by(gene) %>%
-  sample_n(2000)
+  sample_n(40)
 
-# confirming training set
+# Confirming training set
 table(df_gene_train$gene)
-#2000 samples from each
+# 40 samples from each
 
-# building a classifier
-
+# Building a classifier
 gene_classifier <- randomForest(
   x = df_gene_train[, c("Aprop", "Tprop", "Gprop")],
   y = as.factor(df_gene_train$gene),
@@ -342,65 +378,65 @@ gene_classifier <- randomForest(
 )
 
 gene_classifier
-# good performance, error rate of 0.25%, misclassified COI as COII 8 times, and COII as COI 2 times
+# COI vs COII performance was excellent, 100% accuracy with 0% OOB error and  no misclassification, indicating that these two genes are easily distinguishable using simple sequence composition features.
 
-# validate
+# Validation
 
 pred_gene <- predict(gene_classifier, df_gene_val[, c("Aprop", "Tprop", "Gprop")])
 table(observed = df_gene_val$gene, predicted = pred_gene)
-# works well
+# Works well
 
-## ---- Classifier 2: predict species (Danainae vs Heliconiinae) ----
+## ---- Classifier 2: predict subfamily (Danainae vs Heliconiinae) ----
 
-table(df_clean$species)
-# maximum sample size is 5042 for Danainae, so will sample 1260 genes (about 25% of the total) for the validation set
+# Checking the number of sequences per subfamily after filtering
+table(df_clean$subfamily)
+# Maximum sample size is 3714 for Danainae, so will sample 928 genes (about 25% of the total) for the validation set
 
 # Creating validation set
 
 set.seed(456)
 
-df_species_val <- df_clean %>%
-  group_by(species) %>%
-  sample_n(1260)
+df_subfamily_val <- df_clean %>%
+  group_by(subfamily) %>%
+  sample_n(928)
 
-table(df_species_val$species)
-#1260 samples from each
+table(df_subfamily_val$subfamily)
+#928 samples from each
 
 
-df_species_remaining <- df_clean %>% filter(!id %in% df_species_val$id)
-df_species_remaining %>% count(species)
-#3782 Danainae and 9368 Heliconiinae so will choose sample size of 3000
+df_subfamily_remaining <- df_clean %>% filter(!id %in% df_subfamily_val$id)
+df_subfamily_remaining %>% count(subfamily)
+# 2786 Danainae and 7745 Heliconiinae so will choose sample size of 2500
 
 # Creating training set
 
-df_species_train <- df_species_remaining %>%
-  group_by(species) %>%
-  sample_n(3000)
+df_subfamily_train <- df_subfamily_remaining %>%
+  group_by(subfamily) %>%
+  sample_n(2500)
 
-table(df_species_train$species)
-#3000 samples from each
+table(df_subfamily_train$subfamily)
+#2500 samples from each
 
 # building a classifier
 
-species_classifier <- randomForest(
-  x = df_species_train[, c("Aprop", "Tprop", "Gprop")],
-  y = as.factor(df_species_train$species),
+subfamily_classifier <- randomForest(
+  x = df_subfamily_train[, c("Aprop", "Tprop", "Gprop")],
+  y = as.factor(df_subfamily_train$subfamily),
   ntree = 200,
   importance = TRUE
 )
 
-species_classifier
-# good performance, error rate of 7.92%
+subfamily_classifier
+# The subfamily classifier performs well overall, with a low OOB error rate (7.36%). Most Danainae and Heliconiinae sequences are correctly classified, but subfamily separation is more difficult than gene classification due to greater overlap in nucleotide composition
 
-# validate
+# Validation
+pred_subfamily <- predict(subfamily_classifier, df_subfamily_val[, c("Aprop", "Tprop", "Gprop")])
 
-pred_species <- predict(species_classifier, df_species_val[, c("Aprop", "Tprop", "Gprop")])
-
-table(observed = df_species_val$species, predicted = pred_species)
-# works pretty good
+table(observed = df_subfamily_val$subfamily, predicted = pred_subfamily)
+# Works pretty well
 
 # ---- ROC Curves ----
-# test to see how good both gene_classifier and species_classifier are at telling 2 classes apart
+# Testing to see how good both gene_classifier and subfamily_classifier are at telling 2 classes apart
 
 ## ---- ROC for gene classifier (COI vs COII) ----
 
@@ -410,64 +446,65 @@ pred_gene_prob <- predict(
   type = "prob"
 )
 
-# probability of one class - choosing COI as the control
-
+# Probability of one class - choosing COI as the control
 roc_gene <- roc(
   response = df_gene_val$gene,
   predictor = pred_gene_prob[, "COI"]
 )
 
-#plot it
+# Plotting it
 plot(
   roc_gene,
   col = "blue",
   lwd = 2,
   main = "ROC Curve: Gene Classifier (COI vs COII)"
 )
+# Interpretation: this curve reaches the top-left corner with an AUC of 1.0, indicating perfect classification performance. This means the model separates COI and COII with 100% sensitivity and specificity across all thresholds
 
 auc(roc_gene)
-# area under the curve = 1, meaning there is perfect classification
+# Area under the curve = 1, meaning there is perfect classification
 # The model can separate COI and COII with 100% accuracy across all thresholds
 
-## ---- ROC for species classifier (Danainae vs Heliconiinae) ----
+## ---- ROC for subfamily classifier (Danainae vs Heliconiinae) ----
 
-pred_species_prob <- predict(
-  species_classifier,
-  df_species_val[, c("Aprop", "Tprop", "Gprop")],
+pred_subfamily_prob <- predict(
+  subfamily_classifier,
+  df_subfamily_val[, c("Aprop", "Tprop", "Gprop")],
   type = "prob"
 )
 
-# probability of one class - choosing Danainae as the control
-
-roc_species <- roc(
-  response = df_species_val$species,
-  predictor = pred_species_prob[, "Danainae"]
+# Probability of one class - choosing Danainae as the control
+roc_subfamily <- roc(
+  response = df_subfamily_val$subfamily,
+  predictor = pred_subfamily_prob[, "Danainae"]
 )
 
-#plot it
+# Plotting it
 plot(
-  roc_species,
+  roc_subfamily,
   col = "red",
   lwd = 2,
-  main = "ROC Curve: Species Classifier (Danainae vs Heliconiinae)"
+  main = "ROC Curve: Subfamily Classifier (Danainae vs Heliconiinae)"
 )
+# Interpretation: this curve shows strong classification performance for separating Danainae and Heliconiinae, with high sensitivity achieved at very high specificity. This indicates the subfamily classifier is highly accurate, though not perfectly separable like the gene classifier
 
-auc(roc_species)
-#Area under the curve = 0.9728, meaning very strong classification
+auc(roc_subfamily)
+# Area under the curve = 0.9781, meaning very strong classification
 # The classifier can almost always distinguish between the two butterfly subfamilies
 
 # Overlaying both ROC curves
 
 plot(roc_gene, col = "blue", lwd = 2, main = "ROC Comparison")
-plot(roc_species, col = "red", lwd = 2, add = TRUE)
+plot(roc_subfamily, col = "red", lwd = 2, add = TRUE)
 
 legend(
   "bottomright",
-  legend = c("Gene (COI vs COII)", "Species (Danainae vs Heliconiinae)"),
+  legend = c("Gene (COI vs COII)", "Subfamily (Danainae vs Heliconiinae)"),
   col = c("blue", "red"),
   lwd = 2, 
   bty = "n"
 )
+# Interpretation: both classifiers perform very well, but the gene classifier (COI vs COII) shows perfect discrimination with an AUC of 1. The subfamily classifier (Danainae vs Heliconiinae) also performs strongly but with slightly lower accuracy, reflecting greater biological overlap between subfamilies than between genes
 
 # ---- SVM Classifiers ----
 
@@ -479,9 +516,11 @@ legend(
 
 gene_feat <- c("Aprop", "Tprop", "Gprop")
 
+# Extracting feature matrix for gene training set and converting gene labels to factor for classification
 x_gene_train <- df_gene_train[, gene_feat]
 y_gene_train <- as.factor(df_gene_train$gene)
 
+# Training linear SVM model to classify COI vs COII
 svm_gene <- svm(
   x = x_gene_train,
   y = y_gene_train, 
@@ -491,6 +530,7 @@ svm_gene <- svm(
 )
 
 svm_gene
+# Interpretation: the model required only 6 support vectors, indicating that the two gene classes are very well separated using the nucleotide proportion features. This confirms that the classification problem is very easy to solve with these features
 
 # Validate SVM
 
@@ -501,67 +541,86 @@ svm_gene_pred <- predict(svm_gene, x_gene_val)
 
 # confusion matrix
 table(observed = y_gene_val, predicted = svm_gene_pred)
+# The model works well
 
 # ROC and AUC for SVM for genes
 
+# Predicting SVM class probabilities for the validation dataset (COI vs non-COI)
 svm_gene_pred_prob <- attr(
   predict(svm_gene, x_gene_val, probability = TRUE),
   "probabilities"
 )[, "COI"]
 
+# Generating ROC curve for the SVM classifier using predicted probabilities
 roc_gene_svm <- roc(response = y_gene_val, predictor = svm_gene_pred_prob)
 auc(roc_gene_svm)
+# Area under the curve = 1, meaning there is perfect classification
+# The model can separate COI and COII with 100% accuracy across all thresholds
 
+# Plotting the Random Forest ROC curve as a reference
 plot(roc_gene, col = "blue", lwd = 2, main = "Gene ROC: RF vs SVM")
+
+# Overlaying the SVM ROC curve for direct model comparison
 plot(roc_gene_svm, col = "red", lwd = 2, add = TRUE)
 legend("bottomright",
        legend = c("Random Forest", "SVM"),
        col = c("blue", "red"),
        lwd = 2, bty = "n")
 
-## ---- Species Classifier (Danainae vs Heliconiinae) ----
+# Interpretation: both the Random Forest and SVM models show identical ROC curves, indicating that they perform equally well at distinguishing between gene classes
+
+## ---- Subfamily Classifier (Danainae vs Heliconiinae) ----
 
 # Training SVM
 
-species_feat <- c("Aprop", "Tprop", "Gprop")
+subfamily_feat <- c("Aprop", "Tprop", "Gprop")
 
-x_species_train <- df_species_train[, species_feat]
-y_species_train <- as.factor(df_species_train$species)
+# Extracting feature matrix for subfamily training set and converting subfamily labels to factor for classification
+x_subfamily_train <- df_subfamily_train[, subfamily_feat]
+y_subfamily_train <- as.factor(df_subfamily_train$subfamily)
 
-svm_species <- svm(
-  x = x_species_train,
-  y = y_species_train, 
+# Training linear SVM model to classify Danainae vs Heliconiinae
+svm_subfamily <- svm(
+  x = x_subfamily_train,
+  y = y_subfamily_train, 
   kernel = "linear",
   probability = TRUE,
   scale = TRUE
 )
 
-svm_species
+svm_subfamily
+# Interpretation: the model required a large number of support vectors (3669), indicating that the subfamily classes are more complex and less cleanly separated using the available features. This suggests that the classification task is more difficult and likely involves substantial overlap among subfamilies.
 
 # Validate SVM
 
-x_species_val <- df_species_val[, species_feat]
-y_species_val <- as.factor(df_species_val$species)
+x_subfamily_val <- df_subfamily_val[, subfamily_feat]
+y_subfamily_val <- as.factor(df_subfamily_val$subfamily)
 
-svm_species_pred <- predict(svm_species, x_species_val)
+svm_subfamily_pred <- predict(svm_subfamily, x_subfamily_val)
 
 # confusion matrix
-table(observed = y_species_val, predicted = svm_species_pred)
+table(observed = y_subfamily_val, predicted = svm_subfamily_pred)
+# The model performs with an accuracy of 68%, with substantial misclassification between Danainae and Heliconiinae indicating overlap between the two subfamilies
 
-# ROC and AUC for SVM for species
+# ROC and AUC for SVM for subfamilies
 
-svm_species_pred_prob <- attr(
-  predict(svm_species, x_species_val, probability = TRUE),
+# Predicting SVM class probabilities for the validation dataset (Dinainae vs Heliconiinae)
+svm_subfamily_pred_prob <- attr(
+  predict(svm_subfamily, x_subfamily_val, probability = TRUE),
   "probabilities"
 )[, "Danainae"]
 
-roc_species_svm <- roc(response = y_species_val, predictor = svm_species_pred_prob)
-auc(roc_species_svm)
+# Generating ROC curve for the SVM classifier using predicted probabilities
+roc_subfamily_svm <- roc(response = y_subfamily_val, predictor = svm_subfamily_pred_prob)
+auc(roc_subfamily_svm)
+# Area under the curve = 0.737, indicating moderate classification performance
+# The classifier can distinguish between the two butterfly subfamilies better than random, but with noticeable overlap
 
-plot(roc_species, col = "blue", lwd = 2, main = "Species ROC: RF vs SVM")
-plot(roc_species_svm, col = "red", lwd = 2, add = TRUE)
+plot(roc_subfamily, col = "blue", lwd = 2, main = "Subfamily ROC: RF vs SVM")
+plot(roc_subfamily_svm, col = "red", lwd = 2, add = TRUE)
 legend("bottomright",
        legend = c("Random Forest", "SVM"),
        col = c("blue", "red"),
        lwd = 2, bty = "n")
 
+# Interpretation: The Random Forest model substantially outperforms the SVM at the subfamily level, showing much higher sensitivity across most specificity values, while the SVM displays only moderate discriminatory ability. This indicates that Random Forest captures subfamily-level sequence patterns far more effectively than the linear SVM
