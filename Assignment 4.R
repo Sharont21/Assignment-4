@@ -46,6 +46,8 @@ table(dfDanainae$marker_code)
 table(dfHeliconiinae$marker_code)
 #10127 COI-5P and 31 COII
 
+# less COII in comparison to COI, so sampling bias is involved
+
 # I will be using COI-5P as my COI gene
 
 # ---- Downloading data from NCBI ----
@@ -453,12 +455,16 @@ roc_gene <- roc(
 )
 
 # Plotting it
+png("../figs/ROC_genes.png", width = 800, height = 600, res = 120)
+
 plot(
   roc_gene,
   col = "blue",
   lwd = 2,
   main = "ROC Curve: Gene Classifier (COI vs COII)"
 )
+
+dev.off()
 # Interpretation: this curve reaches the top-left corner with an AUC of 1.0, indicating perfect classification performance. This means the model separates COI and COII with 100% sensitivity and specificity across all thresholds
 
 auc(roc_gene)
@@ -480,12 +486,16 @@ roc_subfamily <- roc(
 )
 
 # Plotting it
+png("../figs/ROC_subfamilies.png", width = 800, height = 600, res = 120)
+
 plot(
   roc_subfamily,
   col = "red",
   lwd = 2,
   main = "ROC Curve: Subfamily Classifier (Danainae vs Heliconiinae)"
 )
+
+dev.off()
 # Interpretation: this curve shows strong classification performance for separating Danainae and Heliconiinae, with high sensitivity achieved at very high specificity. This indicates the subfamily classifier is highly accurate, though not perfectly separable like the gene classifier
 
 auc(roc_subfamily)
@@ -493,6 +503,7 @@ auc(roc_subfamily)
 # The classifier can almost always distinguish between the two butterfly subfamilies
 
 # Overlaying both ROC curves
+png("../figs/ROC_comparison.png", width = 800, height = 600, res = 120)
 
 plot(roc_gene, col = "blue", lwd = 2, main = "ROC Comparison")
 plot(roc_subfamily, col = "red", lwd = 2, add = TRUE)
@@ -504,6 +515,8 @@ legend(
   lwd = 2, 
   bty = "n"
 )
+
+dev.off()
 # Interpretation: both classifiers perform very well, but the gene classifier (COI vs COII) shows perfect discrimination with an AUC of 1. The subfamily classifier (Danainae vs Heliconiinae) also performs strongly but with slightly lower accuracy, reflecting greater biological overlap between subfamilies than between genes
 
 # ---- SVM Classifiers ----
@@ -558,6 +571,8 @@ auc(roc_gene_svm)
 # The model can separate COI and COII with 100% accuracy across all thresholds
 
 # Plotting the Random Forest ROC curve as a reference
+png("../figs/ROC_vs_SVM_gene_comparison.png", width = 800, height = 600, res = 120)
+
 plot(roc_gene, col = "blue", lwd = 2, main = "Gene ROC: RF vs SVM")
 
 # Overlaying the SVM ROC curve for direct model comparison
@@ -566,6 +581,8 @@ legend("bottomright",
        legend = c("Random Forest", "SVM"),
        col = c("blue", "red"),
        lwd = 2, bty = "n")
+
+dev.off()
 
 # Interpretation: both the Random Forest and SVM models show identical ROC curves, indicating that they perform equally well at distinguishing between gene classes
 
@@ -615,12 +632,18 @@ roc_subfamily_svm <- roc(response = y_subfamily_val, predictor = svm_subfamily_p
 auc(roc_subfamily_svm)
 # Area under the curve = 0.737, indicating moderate classification performance
 # The classifier can distinguish between the two butterfly subfamilies better than random, but with noticeable overlap
+png("../figs/ROC_vs_SVM_sunfamily_comparison.png", width = 800, height = 600, res = 120)
 
+# Plotting the Random Forest ROC curve as a reference
 plot(roc_subfamily, col = "blue", lwd = 2, main = "Subfamily ROC: RF vs SVM")
+
+# Overlaying the SVM ROC curve for direct model comparison
 plot(roc_subfamily_svm, col = "red", lwd = 2, add = TRUE)
 legend("bottomright",
        legend = c("Random Forest", "SVM"),
        col = c("blue", "red"),
        lwd = 2, bty = "n")
+
+dev.off()
 
 # Interpretation: The Random Forest model substantially outperforms the SVM at the subfamily level, showing much higher sensitivity across most specificity values, while the SVM displays only moderate discriminatory ability. This indicates that Random Forest captures subfamily-level sequence patterns far more effectively than the linear SVM
